@@ -26,6 +26,7 @@ class Item
   end
 
   def test(value)
+    # This is where we need to optimize
     (to_i % value).zero?
   end
 
@@ -41,8 +42,10 @@ class Item
 
   def *(other)
     if other.is_a?(Item)
-      self.divisor += other.divisor
-      self.remainder += other.remainder
+      self.quotient *= other.divisor
+      self.divisor *= other.quotient
+      self.divisor += remainder + other.remainder
+      self.remainder *= other.remainder
     else
       self.divisor *= other
       self.remainder *= other
@@ -166,9 +169,9 @@ def print_monkeys(monkeys)
   puts ''
 end
 
-puts "== Initial state =="
-
-print_monkeys(monkeys)
+# puts "== Initial state =="
+#
+# print_monkeys(monkeys)
 
 1000.times do |i|
   monkeys.each do |monkey|
