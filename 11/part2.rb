@@ -16,8 +16,10 @@ class Item
   def initialize(value)
     self.id = Item.id_generator
     self.divisor = 2
-    self.quotient = value / divisor
-    self.remainder = value % divisor
+
+    div, mod = divmod(value)
+    self.quotient = div
+    self.remainder = mod
   end
 
   def perform(operation, operand)
@@ -26,8 +28,14 @@ class Item
   end
 
   def test(value)
-    # This is where we need to optimize
-    (to_i % value).zero?
+    mod = quotient % value
+    mod *= divisor % value
+    mod %= value
+
+    mod += (remainder % value)
+    mod %= value
+
+    mod.zero?
   end
 
   def to_s
@@ -37,8 +45,6 @@ class Item
   def to_i
     quotient * divisor + remainder
   end
-
-  protected
 
   def *(other)
     if other.is_a?(Item)
@@ -52,6 +58,7 @@ class Item
     end
 
     rebalance
+    self
   end
 
   def +(other)
@@ -59,11 +66,13 @@ class Item
       self.divisor += other.divisor
       self.remainder += other.remainder
     else
-      self.quotient += other / divisor
-      self.remainder += other % divisor
+      div, mod = divmod(other)
+      self.quotient += div
+      self.remainder += mod
     end
 
     rebalance
+    self
   end
 
   def -(other)
@@ -71,16 +80,25 @@ class Item
       self.divisor -= other.divisor
       self.remainder -= other.remainder
     else
-      self.quotient -= other / divisor
-      self.remainder -= other % divisor
+      div, mod = divmod(other)
+      self.quotient -= div
+      self.remainder -= mod
     end
 
     rebalance
+    self
+  end
+
+  protected
+
+  def divmod(value)
+    value.divmod(divisor)
   end
 
   def rebalance
-    self.quotient += remainder / divisor
-    self.remainder %= divisor
+    div, mod = divmod(remainder)
+    self.quotient += div
+    self.remainder = mod
   end
 end
 
