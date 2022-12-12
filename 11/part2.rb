@@ -21,7 +21,7 @@ class Item
   end
 
   def perform(operation, operand)
-    value = operand == :old ? to_i : operand
+    value = operand == :old ? clone : operand
     send(operation, value)
   end
 
@@ -40,21 +40,44 @@ class Item
   protected
 
   def *(other)
-    self.divisor *= other
-    self.remainder *= other
+    if other.is_a?(Item)
+      self.divisor += other.divisor
+      self.remainder += other.remainder
+    else
+      self.divisor *= other
+      self.remainder *= other
+    end
 
-    self.quotient += remainder / divisor
-    self.remainder %= divisor
+    rebalance
   end
 
   def +(other)
-    self.quotient += other / divisor
-    self.remainder += other % divisor
+    if other.is_a?(Item)
+      self.divisor += other.divisor
+      self.remainder += other.remainder
+    else
+      self.quotient += other / divisor
+      self.remainder += other % divisor
+    end
+
+    rebalance
   end
 
   def -(other)
-    self.quotient -= other / divisor
-    self.remainder -= other % divisor
+    if other.is_a?(Item)
+      self.divisor -= other.divisor
+      self.remainder -= other.remainder
+    else
+      self.quotient -= other / divisor
+      self.remainder -= other % divisor
+    end
+
+    rebalance
+  end
+
+  def rebalance
+    self.quotient += remainder / divisor
+    self.remainder %= divisor
   end
 end
 
