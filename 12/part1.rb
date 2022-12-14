@@ -3,57 +3,54 @@
 require 'matrix'
 
 class HeightMap
-  attr_reader :grid, :graph, :start, :finish, :nodes, :distance
+  attr_reader :grid, :graph, :start, :finish
 
   def initialize(lines)
     @grid = Matrix[*lines.map(&:chars)]
     @graph = {}
-    @nodes = []
-    @distance = Hash.new(Float::INFINITY)
 
     build_graph
   end
 
-  # http://en.wikipedia.org/wiki/Dijkstra's_algorithm
+  # See https://en.wikipedia.org/wiki/A*_search_algorithm
   def shortest_path
-    current = start
-    distance[start] = 0
+    open_set = [start]
 
-    until current == finish
-      visit_node(current)
-      puts "Visited #{current}"
-      current = next_node
-      puts "Next node: #{current}"
+    g_score = Hash.new(Float::INFINITY)
+    g_score[start] = 0
+
+    f_score = Hash.new(Float::INFINITY)
+    f_score[start] = heuristic(start)
+
+    until open_set.empty?
+      min_f_score = f_score.select { |key, _| open_set.include?(key) }.values.min
+      current = f_score.detect { |key, value| value == min_f_score && open_set.include?(key) }.first
+
+      return g_score[current] if current == finish
+
+      open_set.delete(current)
+
+      graph[current].each_key do |neighbor|
+        new_g_score = g_score[current] + 1
+        if new_g_score < g_score[neighbor]
+          g_score[neighbor] = new_g_score
+          f_score[neighbor] = new_g_score + heuristic(neighbor) 
+          open_set << neighbor unless open_set.include?(neighbor)
+        end
+      end
     end
-
-    distance[finish]
   end
 
   protected
 
-  def visited?(node)
-    !nodes.include?(node)
-  end
-
-  def visit_node(node)
-    graph[node]&.each_key do |neighbor|
-      next if visited?(neighbor)
-      new_distance = distance[node] + 1
-      distance[neighbor] = new_distance if new_distance < distance[neighbor]
-    end
-
-    nodes.delete(node)
-  end
-
-  def next_node
-    min_distance = distance.reject { |node, _| visited?(node) }.values.min
-    distance.select { |node, value| value == min_distance && !visited?(node) }.keys.first
+  def heuristic(node)
+    (finish[0] - node[0]) +
+      (finish[1] - node[1])
   end
 
   def build_graph
     grid.each_with_index do |_, row, col|
       node = [row, col]
-      nodes << node
       mark_endpoint(node)
 
       add_edge(node, [row - 1, col]) if row.positive?
