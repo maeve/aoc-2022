@@ -43,29 +43,21 @@ class Sensor
 end
 
 class CaveMap
-  attr_reader :sensors,
-              :grid,
-              :row_offset,
-              :col_offset
-
-  EMPTY = '.'
-  SENSOR = 'S'
-  BEACON = 'B'
-  NO_BEACON = '#'
+  attr_reader :sensors
 
   def initialize(lines)
     @sensors = parse_sensors(lines)
-    # @grid = initialize_grid
-  end
-
-  def to_s
-    grid.row_vectors.map do |row_vector|
-      row_vector.to_a.join('')
-    end.join("\n")
   end
 
   def no_beacon_count(row)
-    grid.row(row - min_row).to_a.select { |element| element == NO_BEACON }.size
+    count = 0
+
+    (max_col - min_col + 1).times do |i|
+      col = i + min_col
+      count += 1 if sensors.any? { |s| s.no_beacon?(row, col) }
+    end
+
+    count
   end
 
   private
@@ -86,22 +78,7 @@ class CaveMap
     @max_col ||= sensors.map { |s| s.col + s.beacon_distance }.max
   end
 
-  def initialize_grid
-    Matrix.build(max_row - min_row + 1, max_col - min_col + 1) do |i, j|
-      row = i + min_row
-      col = j + min_col
-
-      if sensors.any? { |s| s.at?(row, col) }
-        SENSOR
-      elsif sensors.any? { |s| s.beacon?(row, col) }
-        BEACON
-      elsif sensors.any? { |s| s.no_beacon?(row, col) }
-        NO_BEACON
-      else
-        EMPTY
-      end
-    end
-  end
+  private
 
   def parse_sensors(lines)
     lines.map do |line|
@@ -116,7 +93,6 @@ input = File.readlines('./input.txt').map(&:chomp)
 map = CaveMap.new(input)
 
 puts '== Initial state =='
-puts map.to_s
 
 row = 2_000_000
 puts "No beacon count on row #{row}: #{map.no_beacon_count(row)}"
