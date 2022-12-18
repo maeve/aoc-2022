@@ -2,27 +2,61 @@
 # frozen_string_literal: true
 
 class Valve
-  attr_accessor :name, :flow_rate, :tunnels, :closed
+  attr_accessor :name, :flow_rate, :tunnels
 
   def initialize(name)
     self.name = name
-    self.closed = true
-  end
-
-  def open?
-    !closed
-  end
-
-  def closed?
-    closed
-  end
-
-  def open
-    self.closed = false
   end
 
   def to_s
     "Valve #{name} has flow rate=#{flow_rate}; tunnels lead to #{tunnels.map(&:name).join(', ')}"
+  end
+end
+
+class ValvePath
+  attr_accessor :valve, :pressure, :opened, :visited
+
+  def initialize(valve, pressure, opened = [], visited = [])
+    self.valve = valve
+    self.pressure = pressure
+    self.opened = opened
+    self.visited = visited
+
+    # No-flow valves are the same open or closed, so consider them open
+    visit!
+    open! if valve.flow_rate.zero? && !open?
+  end
+
+  def update_pressure
+    self.pressure += opened.map(&:flow_rate).inject(:+).to_i
+  end
+
+  def open?
+    opened.include?(valve)
+  end
+
+  def visit!
+    visited << valve
+    self
+  end
+
+  def open!
+    opened << valve unless open?
+    self
+  end
+
+  def adjacent_paths
+    valve.tunnels.map do |neighbor|
+      ValvePath.new(neighbor, pressure, opened.clone, visited.clone)
+    end
+  end
+
+  def all_open?(valves)
+    (valves - opened).empty?
+  end
+
+  def to_s
+    "valve=#{valve.name} pressure=#{pressure} opened=#{opened.map(&:name).inspect} visited=#{visited.map(&:name).inspect}"
   end
 end
 
@@ -31,54 +65,47 @@ class ValveGraph
 
   def initialize(input)
     self.valves = {}
-    parse_input(input)
     self.time_remaining = 30
-  end
-
-  def minute
-    31 - time_remaining
+    parse_input(input)
   end
 
   def release_pressure
-    current = valves['AA']
+    max_path = ValvePath.new(valves['AA'], 0)
+    paths = [max_path]
+
 
     until time_remaining.zero?
-      print_status
+      next_step = []
 
-      if current.flow_rate.zero? || current.open?
-        tunnel = current.tunnels.select(&:closed).sort_by(&:flow_rate).last
-        puts "You move to valve #{tunnel.name}."
-        current = tunnel
-      elsif current.closed?
-        puts "You open valve #{current.name}."
-        current.open
+      puts "=== Minute: #{31 - time_remaining} =="
+      puts
+
+      until paths.empty?
+        path = paths.shift
+        path.update_pressure
+        max_path = path if path.pressure > max_path.pressure
+
+        if path.all_open?(valves.values)
+          next_step << path
+        elsif path.open?
+          next_step += path.adjacent_paths
+        else
+          next_step << path.open!
+        end
+
       end
 
-      puts ''
+      puts "max_path: #{max_path}"
+      puts
 
+      paths = next_step
       self.time_remaining -= 1
     end
-  end
 
-  def print_status
-    puts "== Minute #{31 - time_remaining} =="
-
-    if open_valves.empty?
-      puts 'No valves are open.'
-    else
-      puts "Valves #{open_valves.map(&:name).join(', ')} are open, releasing #{total_flow_rate} pressure."
-    end
+    max_path
   end
 
   private
-
-  def open_valves
-    valves.values.select(&:open?)
-  end
-
-  def total_flow_rate
-    open_valves.map(&:flow_rate).inject(:+)
-  end
 
   def parse_input(lines)
     lines.each do |line|
@@ -101,4 +128,4 @@ input = File.readlines('./test-input.txt').map(&:chomp)
 
 g = ValveGraph.new(input)
 
-g.release_pressure
+puts "Released pressure: #{g.release_pressure}"
