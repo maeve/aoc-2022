@@ -34,75 +34,84 @@ class Valve
     [name].hash
   end
 
-  def can_open?
+  def working?
     flow_rate.positive?
   end
 end
 
 class ValveGraph
-  attr_accessor :valve_map, :distance, :next_node, :start
+  attr_accessor :valves, :distance
 
   def initialize(input)
     parse_input(input)
-    self.start = valve_map['AA']
-
-    num_valves = valve_map.size
-    self.distance = Matrix.build(num_valves, num_valves) { Float::INFINITY }
-    self.next_node = Matrix.build(num_valves, num_valves) { nil }
+    self.distance = Matrix.build(valves.size, valves.size) { Float::INFINITY }
   end
 
-  def num_valves
-    @num_valves ||= valve_map.size
+  def start
+    valves['AA']
   end
 
   def release_pressure
     compute_distances
 
-    valve_map.each_value |
-    shortest_path = path(start, valve_map['CC'])
+    puts "Working valves: #{working_valves.size}"
+    puts working_valves
+
+    max_pressure = 0
+
+    working_valves.permutation do |path|
+      path.unshift(start)
+      max_pressure = [released_pressure(path), max_pressure].max
+    end
+
+    max_pressure
   end
 
   private
 
-  def compute_distances
-    # Floyd-Warshall to compute paths between each combination of vertices
-    valve_map.each_value do |valve|
-      valve.tunnels.each do |neighbor|
-        distance[valve.id, neighbor.id] = neighbor.can_open? ? 2 : 1
-        next_node[valve.id, neighbor.id] = neighbor
-      end
+  def working_valves
+    @working_valves ||= valves.values.select(&:working?).sort_by(&:flow_rate).reverse
+  end
 
-      distance[valve.id, valve.id] = 0
-      next_node[valve.id, valve.id] = valve
+  def released_pressure(path)
+    minutes_left = 30
+    pressure = 0
+
+    path.each_cons(2) do |prev, node|
+      minutes_left -= distance[prev.id, node.id]
+
+      minutes_left -= 1 if node.working?
+      pressure += node.flow_rate * minutes_left
     end
 
-    num_valves.times do |k|
-      num_valves.times do |i|
-        num_valves.times do |j|
+    pressure
+  end
+
+  def compute_distances
+    # Floyd-Warshall to compute paths between each combination of vertices
+    valves.each_value do |valve|
+      valve.tunnels.each do |neighbor|
+        distance[valve.id, neighbor.id] = 1
+      end
+
+      if valve.working?
+        distance[valve.id, valve.id] = valve.working? ? 1 : 0
+      end
+    end
+
+    valves.size.times do |k|
+      valves.size.times do |i|
+        valves.size.times do |j|
           if distance[i, j] > distance[i, k] + distance[k, j]
-            distance[i, j] = distance[i, k] = distance[k, j]
-            next_node[i, j] = next_node[i, k]
+            distance[i, j] = distance[i, k] + distance[k, j]
           end
         end
       end
     end
   end
 
-  def path(valve, other_valve)
-    return [] if next_node[valve.id, other_valve.id].nil?
-
-    path = [valve]
-
-    while valve.id != other_valve.id
-      valve = next_node[valve.id, other_valve.id]
-      path << valve
-    end
-
-    path
-  end
-
   def parse_input(lines)
-    self.valve_map = {}
+    self.valves = {}
 
     lines.each do |line|
       matches = line.match(
@@ -116,7 +125,7 @@ class ValveGraph
   end
 
   def find_or_create_valve(name)
-    valve_map[name] ||= Valve.new(name)
+    valves[name] ||= Valve.new(name)
   end
 end
 
@@ -124,6 +133,5 @@ input = File.readlines('./test-input.txt').map(&:chomp)
 
 g = ValveGraph.new(input)
 
-shortest_path = g.release_pressure
-
-puts shortest_path
+puts "Released pressure:"
+puts g.release_pressure
