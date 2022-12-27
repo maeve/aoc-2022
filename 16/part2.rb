@@ -62,21 +62,30 @@ class ValveGraph
     puts working_valves
     puts
 
-    processed_sets = []
+    processed = Set.new
+
+    top = working_valves.shift(2)
 
     working_valves.permutation(working_valves.size / 2) do |nodes|
       valve_set = Set[*nodes]
-      next if processed_sets.include?(valve_set)
+      next if processed.include?(valve_set)
 
-      processed_sets << valve_set
+      processed << valve_set
+
+      nodes.unshift(top.last)
+      remaining = working_valves - nodes
+      remaining.unshift(top.first)
+
+      next unless estimate_pressure(start, remaining, 26) + estimate_pressure(start, nodes, 26) > max_pressure
+
+      # puts "Nodes: #{nodes.map(&:name).join(',')}"
+      # puts "Remaining: #{remaining.map(&:name).join(',')}"
 
       pressure1 = release_valves(nodes, 26)
-
-      remaining = working_valves - nodes
-      next unless estimate_pressure(start, remaining, 26) > max_pressure - pressure1
-
       pressure2 = release_valves(remaining, 26)
       max_pressure = [max_pressure, pressure1 + pressure2].max
+      # puts "Max pressure: #{max_pressure}"
+      # puts
     end
 
     max_pressure
@@ -123,7 +132,7 @@ class ValveGraph
   end
 
   def working_valves
-    @working_valves ||= valves.values.select(&:working?).sort_by(&:flow_rate)
+    @working_valves ||= valves.values.select(&:working?).sort_by { |v| -v.flow_rate + distance[start.id, v.id] }
   end
 
   def compute_distances
