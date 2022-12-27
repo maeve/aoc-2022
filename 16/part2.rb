@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'matrix'
+require 'set'
 
 class Valve
   attr_accessor :id, :name, :flow_rate, :tunnels
@@ -61,19 +62,29 @@ class ValveGraph
     puts working_valves
     puts
 
-    working_valves.permutation(working_valves.size / 2) do |valve_set|
-      pressure1 = release_valves(valve_set, 26)
-      pressure2 = release_valves(working_valves - valve_set, 26)
+    processed_sets = []
 
+    working_valves.permutation(working_valves.size / 2) do |nodes|
+      valve_set = Set[*nodes]
+      next if processed_sets.include?(valve_set)
+
+      processed_sets << valve_set
+
+      pressure1 = release_valves(nodes, 26)
+
+      remaining = working_valves - nodes
+      next unless estimate_pressure(start, remaining, 26) > max_pressure - pressure1
+
+      pressure2 = release_valves(remaining, 26)
       max_pressure = [max_pressure, pressure1 + pressure2].max
     end
 
     max_pressure
   end
-  
+
   private
 
-  def release_valves(valve_set, time)
+  def release_valves(nodes, time)
     stack = [[start, time, [], 0]]
 
     max_pressure = 0
@@ -89,7 +100,7 @@ class ValveGraph
       pressure += valve.flow_rate * minutes_left
 
       max_pressure = [pressure, max_pressure].max
-      unopened = (valve_set - visited)
+      unopened = (nodes - visited)
 
       if pressure + estimate_pressure(valve, unopened, minutes_left) >= max_pressure
         unopened.each { |v| stack.push([v, minutes_left, visited, pressure]) }
@@ -99,10 +110,10 @@ class ValveGraph
     max_pressure
   end
 
-  def estimate_pressure(root, valve_set, minutes_left)
-    valid_nodes = [root] + valve_set
+  def estimate_pressure(root, nodes, minutes_left)
+    valid_nodes = [root] + nodes
 
-    valve_set.sum do |valve|
+    nodes.sum do |valve|
       node = valid_nodes.min_by { |v| distance[valve.id, v.id] }
       valid_nodes.delete(node)
 
@@ -157,7 +168,7 @@ class ValveGraph
   end
 end
 
-input = File.readlines('./test-input.txt').map(&:chomp)
+input = File.readlines('./input.txt').map(&:chomp)
 
 g = ValveGraph.new(input)
 
