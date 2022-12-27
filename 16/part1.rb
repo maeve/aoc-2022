@@ -16,6 +16,7 @@ class Valve
   def initialize(name)
     self.id = self.class.generate_id
     self.name = name
+    @cache = {}
   end
 
   def to_s
@@ -54,14 +55,50 @@ class ValveGraph
   def release_pressure
     compute_distances
 
-    puts "Working valves: #{working_valves.size}"
-    puts working_valves
-
     max_pressure = 0
+    stack = [[start, 30, [], 0]]
 
-    working_valves.permutation do |path|
-      path.unshift(start)
-      max_pressure = [released_pressure(path), max_pressure].max
+    until stack.empty?
+      valve, minutes_left, visited, pressure = stack.pop
+
+      puts "=== Visiting #{valve.name} ==="
+
+      puts "Visited: #{visited.map(&:name).join(',')}"
+      puts "Minutes left (before): #{minutes_left}"
+      puts "Pressure (before): #{pressure}"
+      puts "Max pressure (before): #{max_pressure}"
+      puts
+
+      next if visited.include?(valve)
+
+      minutes_left -= distance[visited.last.id, valve.id] if visited.last
+      puts "Minutes left (after travel): #{minutes_left}"
+
+      visited += [valve]
+
+      minutes_left -= 1 if valve.working?
+      puts "Minutes left (after opening): #{minutes_left}"
+
+      pressure += valve.flow_rate * minutes_left
+
+      puts "Pressure (after opening): #{pressure}"
+
+      if pressure > max_pressure
+        puts "Max pressure (after opening): #{pressure}"
+        max_pressure = pressure
+      end
+      
+      unopened = (working_valves - visited)
+
+      puts "Unopened: #{unopened.map(&:name).join(',')}"
+
+      if pressure + estimate_pressure(valve, unopened, minutes_left) >= max_pressure
+        puts "Adding unopened to stack"
+        unopened.each { |v| stack.push([v, minutes_left, visited, pressure]) }
+      end
+
+      puts
+      puts
     end
 
     max_pressure
@@ -69,22 +106,26 @@ class ValveGraph
 
   private
 
-  def working_valves
-    @working_valves ||= valves.values.select(&:working?).sort_by(&:flow_rate).reverse
-  end
-
-  def released_pressure(path)
-    minutes_left = 30
+  def estimate_pressure(root, valve_set, minutes_left)
     pressure = 0
 
-    path.each_cons(2) do |prev, node|
-      minutes_left -= distance[prev.id, node.id]
+    valid_nodes = [root] + valve_set
 
-      minutes_left -= 1 if node.working?
-      pressure += node.flow_rate * minutes_left
+    pressure = valve_set.sum do |valve|
+      node = valid_nodes.min_by { |v| distance[valve.id, v.id] }
+      valid_nodes.delete(node)
+
+      minutes_left -= distance[valve.id, node.id]
+      valve.flow_rate * minutes_left
     end
 
+    puts "Estimated pressure: #{pressure}"
+
     pressure
+  end
+
+  def working_valves
+    @working_valves ||= valves.values.select(&:working?).sort_by(&:flow_rate)
   end
 
   def compute_distances
@@ -129,7 +170,7 @@ class ValveGraph
   end
 end
 
-input = File.readlines('./test-input.txt').map(&:chomp)
+input = File.readlines('./input.txt').map(&:chomp)
 
 g = ValveGraph.new(input)
 
