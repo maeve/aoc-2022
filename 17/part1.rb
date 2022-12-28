@@ -199,7 +199,7 @@ class Shaft
     return true if shape.min_y.zero?
 
     # Check up to the last 10 shapes to see if we have a collision
-    count = dropped_shapes.size > 10 ? 10 : dropped_shapes.size
+    count = dropped_shapes.size > 20 ? 20 : dropped_shapes.size
     dropped_shapes[-count..].any? { |s| !(shape.coordinates & s.coordinates).empty? }
   end
   
@@ -213,7 +213,7 @@ class Shaft
   end
 end
 
-input = File.readlines('./test-input.txt').map(&:chomp)
+input = File.readlines('./input.txt').map(&:chomp)
 
 shaft = Shaft.new(input.first)
 
