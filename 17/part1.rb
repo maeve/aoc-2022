@@ -103,6 +103,13 @@ end
 class Shaft
   SHAPES = [Minus, Plus, Angle, Line, Square].freeze
 
+  REVERSE_MOVES = {
+    left: :right,
+    right: :left,
+    up: :down,
+    down: :up
+  }.freeze
+
   attr_accessor :jet_pattern, :dropped_shapes, :jet_index
 
   def initialize(input)
@@ -114,32 +121,13 @@ class Shaft
   def drop_shape
     shape = create_next_shape
 
-    puts 'A new rock begins falling:'
-    print_grid(shape)
+    # puts 'A new rock begins falling:'
+    # print_grid(shape)
 
     loop do
-      puts "Jet of gas pushes rock #{jet_pattern[jet_index]}:"
-
-      shape.send(jet_pattern[jet_index])
-
-      print_grid(shape)
-
-      shape.down
-
-      puts 'Rock falls 1 unit:'
-      print_grid(shape)
-
-      # Check if we have collided with any of the last 5 shapes (just in case)
-      if top_shapes.any? { |s| !(shape.coordinates & s.coordinates).empty? } ||
-         shape.min_y.zero?
-        puts 'Blocked! Moving shape up 1 unit:'
-        shape.up
-        print_grid(shape)
-        advance_jet_index
-        break
-      end
-
+      move_shape(shape, jet_pattern[jet_index])
       advance_jet_index
+      break unless move_shape(shape, :down)
     end
 
     dropped_shapes << shape
@@ -206,9 +194,22 @@ class Shaft
     self.jet_index %= jet_pattern.size
   end
 
-  def top_shapes
-    count = dropped_shapes.size > 5 ? 5 : dropped_shapes.size
-    dropped_shapes[-count..]
+  def blocked?(shape)
+    # We hit the floor
+    return true if shape.min_y.zero?
+
+    # Check up to the last 10 shapes to see if we have a collision
+    count = dropped_shapes.size > 10 ? 10 : dropped_shapes.size
+    dropped_shapes[-count..].any? { |s| !(shape.coordinates & s.coordinates).empty? }
+  end
+  
+  def move_shape(shape, move)
+    shape.send(move)
+
+    blocked = blocked?(shape)
+    shape.send(REVERSE_MOVES[move]) if blocked
+
+    !blocked
   end
 end
 
@@ -216,13 +217,10 @@ input = File.readlines('./test-input.txt').map(&:chomp)
 
 shaft = Shaft.new(input.first)
 
-2.times do |i|
-  puts "=== Dropping shape #{i + 1} ==="
+2022.times do |i|
+  # puts "=== Dropping shape #{i + 1} ==="
   shaft.drop_shape
-
-  puts 'Rock comes to a rest:'
-  shaft.print_grid
-  puts
+  # puts
 end
 
 puts "Tower height: #{shaft.height}"
