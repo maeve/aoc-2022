@@ -110,26 +110,80 @@ end
 class Shaft
   SHAPES = [Minus, Plus, Angle, Line, Square].freeze
 
+  # We only need to keep track of the top WINDOW_SIZE rows
+  WINDOW_SIZE = 100
   WIDTH = 7
 
-  attr_accessor :jet_pattern, :grid, :jet_index, :height, :rock_count, :shape_index
+  attr_accessor :jet_pattern, :grid, :jet_index, :height, :rock_count, :shape_index, :base_offset, :jet_cycled, :cycle_state
 
   def initialize(input, rock_count)
     self.jet_pattern = input.chars.map { |c| c == '<' ? -1 : 1 }
-    self.rock_count = rock_count
-    self.grid = Array.new(rock_count * 5) { Array.new(WIDTH) { '.' } }
     self.jet_index = 0
+
+    self.rock_count = rock_count
+
+    self.grid = Array.new(WINDOW_SIZE + 10) { Array.new(WIDTH) { '.' } }
+    self.base_offset = 0
     self.height = 0
+
     self.shape_index = 0
+    self.jet_cycled = false
+    self.cycle_state = []
   end
 
   def drop_all_shapes
-    rock_count.times do
-      drop_shape(create_next_shape)
+    start_state = nil
+    end_state = nil
 
-      # puts "After dropping shape height=#{height}"
-      # print_grid
+    rock_count.times do |i|
+      start_state = detect_cycle(i)
+      break if start_state
+
+      drop_shape(create_next_shape)
+      slide_window
     end
+
+    end_state = cycle_state.last
+
+    cycle_rocks = end_state[:rock_index] - start_state[:rock_index]
+    puts "Cycle rocks: #{cycle_rocks}"
+    cycle_height = end_state[:height] - start_state[:height]
+    puts "Cycle height: #{cycle_height}"
+
+    rocks_left = rock_count - (end_state[:rock_index])
+    puts "Rocks left: #{rocks_left}"
+    remaining_cycles = rocks_left / cycle_rocks
+    puts "Remaining cycles: #{remaining_cycles}"
+
+    self.height += cycle_height * remaining_cycles
+    self.base_offset += cycle_height * remaining_cycles
+
+    (rocks_left % cycle_rocks).times do
+      drop_shape(create_next_shape)
+      slide_window
+    end
+
+    # # Now we know the size of the cycle, the rest should be...easy?
+    # cycle_count = rock_count / cycle_moves
+    # self.height = cycle_height * cycle_count
+    #
+    # # The grid will contain the last cycle
+    # self.base_offset += height - cycle_height
+    #
+    # puts "Cycle moves: #{cycle_moves}"
+    # puts "Cycle height: #{cycle_height}"
+    # puts "Cycle count: #{cycle_count}"
+    #
+    # puts "New height: #{height}"
+    # puts "New base offset: #{base_offset}"
+    # puts "Rocks left to process: #{rock_count % cycle_moves}"
+    # print_grid
+    #
+    # (rock_count % cycle_moves).times do
+    #   print_grid
+    #   drop_shape(create_next_shape)
+    #   slide_window
+    # end
   end
 
   def print_grid(shape = nil)
@@ -142,7 +196,6 @@ class Shaft
 
       puts "|#{chars.join('')}|"
     end
-    puts "+#{'-' * WIDTH}+"
     puts
   end
 
@@ -160,6 +213,26 @@ class Shaft
     shape
   end
 
+  def detect_cycle(index)
+    return unless jet_cycled && shape_index.zero?
+
+    # This rock starts a new repetition of both the shape types
+    # and the jet pattern, so it is a convenient place to check for
+    # cycles
+    prev = cycle_state.index { |state| state[:jet_index] == jet_index }
+
+    cycle_state << {
+      jet_index: jet_index,
+      rock_index: index,
+      height: height
+    }
+
+    self.jet_cycled = false
+
+    cycle_state[prev] if prev
+  end
+
+
   def drop_shape(shape)
     # We know we can safely move at least 3 times without bumping into
     # another piece, because of where the initial drop point is
@@ -173,6 +246,15 @@ class Shaft
 
     draw_shape(shape)
     self.height = [height, shape.max_y + 1].max
+  end
+
+  def slide_window
+    return unless (height - base_offset) > WINDOW_SIZE
+
+    overhang = height - base_offset - WINDOW_SIZE
+    self.base_offset += overhang
+    grid.slice!(0, overhang)
+    overhang.times { grid << Array.new(WIDTH) { '.' } }
   end
 
   def move_shape(shape, count)
@@ -199,14 +281,18 @@ class Shaft
     moves += jet_pattern.slice(0, count - moves.size) if moves.size < count
 
     self.jet_index += count
-    self.jet_index %= jet_pattern.size
+
+    if jet_index > jet_pattern.size
+      self.jet_cycled = true
+      self.jet_index %= jet_pattern.size
+    end
 
     moves.sum
   end
 
   def draw_shape(shape)
     shape.coordinates.each do |x, y|
-      grid[y][x] = '#'
+      grid[y - base_offset][x] = '#'
     end
   end
 
@@ -214,7 +300,7 @@ class Shaft
     # We hit the floor
     return true if shape.min_y.negative?
 
-    shape.coordinates.any? { |x, y| grid[y][x] == '#' }
+    shape.coordinates.any? { |x, y| grid[y - base_offset][x] == '#' }
   end
 end
 
@@ -228,6 +314,6 @@ shaft = Shaft.new(input.first, count)
 
 shaft.drop_all_shapes
 
-# shaft.print_grid
+shaft.print_grid
 
 puts "Tower height: #{shaft.height}"
