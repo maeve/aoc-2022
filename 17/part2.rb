@@ -2,7 +2,6 @@
 # frozen_string_literal: true
 
 class Shape
-  # Coordinates start with bottom left and end with top right
   attr_accessor :coordinates
 
   def left(count = 1)
@@ -136,45 +135,30 @@ class Shaft
     end_state = nil
 
     rock_count.times do |i|
-      # start_state = detect_cycle(i)
-      # break if start_state
+      start_state = detect_cycle(i)
+      break if start_state
 
       drop_shape(create_next_shape)
       slide_window
     end
 
-    # end_state = cycle_state.last
-    #
-    # puts "Start state: #{start_state.inspect}"
-    # puts "End state: #{end_state.inspect}"
-    #
-    # return unless start_state
-    #
-    # puts "Height before cycle: #{start_state[:height]}"
-    #
-    # cycle_rocks = end_state[:rock_index] - start_state[:rock_index]
-    # puts "Cycle rocks: #{cycle_rocks}"
-    # cycle_height = end_state[:height] - start_state[:height]
-    # puts "Cycle height: #{cycle_height}"
-    #
-    # rocks_left = rock_count - (end_state[:rock_index])
-    # puts "Rocks left: #{rocks_left}"
-    # remaining_cycles = rocks_left / cycle_rocks
-    # puts "Remaining cycles: #{remaining_cycles}"
-    #
-    # self.height += cycle_height * remaining_cycles
-    # puts "Height after cycles: #{height}"
-    #
-    # puts "Base offset before: #{base_offset}"
-    # self.base_offset += cycle_height * remaining_cycles
-    # puts "Base offset after: #{base_offset}"
-    #
-    # print_grid
-    #
-    # (rocks_left % cycle_rocks).times do
-    #   drop_shape(create_next_shape)
-    #   slide_window
-    # end
+    return unless start_state
+
+    end_state = cycle_state.last
+
+    cycle_rocks = end_state[:rock_index] - start_state[:rock_index]
+    cycle_height = end_state[:height] - start_state[:height]
+
+    rocks_left = rock_count - (end_state[:rock_index])
+    remaining_cycles = rocks_left / cycle_rocks
+
+    self.height += cycle_height * remaining_cycles
+    self.base_offset += cycle_height * remaining_cycles
+
+    (rocks_left % cycle_rocks).times do
+      drop_shape(create_next_shape)
+      slide_window
+    end
   end
 
   def print_grid(shape = nil)
@@ -184,8 +168,6 @@ class Shaft
       shape&.coordinates&.each do |x, y|
         chars[x] = '@' if y == grid.size - 1 - index
       end
-
-      # next if chars.all? { |c| c == '.' }
 
       puts "|#{chars.join('')}|"
     end
@@ -211,9 +193,6 @@ class Shaft
   def detect_cycle(index)
     return unless jet_cycled && shape_index.zero?
 
-    # This rock starts a new repetition of both the shape types
-    # and the jet pattern, so it is a convenient place to check for
-    # cycles
     prev = cycle_state.index { |state| state[:jet_index] == jet_index }
 
     cycle_state << {
@@ -226,7 +205,6 @@ class Shaft
 
     cycle_state[prev] if prev
   end
-
 
   def drop_shape(shape)
     # We know we can safely move at least 3 times without bumping into
@@ -251,7 +229,7 @@ class Shaft
   end
 
   def move_shape(shape)
-    lateral_offset = adjust_gas_jets(shape)
+    lateral_offset = adjust_gas_jets
 
     if lateral_offset.negative?
       adjusted_x = shape.min_x + lateral_offset
@@ -269,7 +247,7 @@ class Shaft
     shape.down
   end
 
-  def adjust_gas_jets(shape)
+  def adjust_gas_jets
     move = jet_pattern[jet_index]
 
     self.jet_index += 1
@@ -299,11 +277,9 @@ class Shaft
   end
 end
 
-input = File.readlines('./test-input.txt').map(&:chomp)
+input = File.readlines('./input.txt').map(&:chomp)
 
-# count = 1000000000000
-
-count = 2022
+count = 1000000000000
 
 shaft = Shaft.new(input.first, count)
 
