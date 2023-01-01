@@ -122,7 +122,7 @@ class Shaft
 
     self.rock_count = rock_count
 
-    self.grid = Array.new(WINDOW_SIZE + 10) { Array.new(WIDTH) { '.' } }
+    self.grid = Array.new(WINDOW_SIZE) { Array.new(WIDTH) { '.' } }
     self.base_offset = 0
     self.height = 0
 
@@ -136,66 +136,61 @@ class Shaft
     end_state = nil
 
     rock_count.times do |i|
-      start_state = detect_cycle(i)
-      break if start_state
+      # start_state = detect_cycle(i)
+      # break if start_state
 
       drop_shape(create_next_shape)
       slide_window
     end
 
-    end_state = cycle_state.last
-
-    cycle_rocks = end_state[:rock_index] - start_state[:rock_index]
-    puts "Cycle rocks: #{cycle_rocks}"
-    cycle_height = end_state[:height] - start_state[:height]
-    puts "Cycle height: #{cycle_height}"
-
-    rocks_left = rock_count - (end_state[:rock_index])
-    puts "Rocks left: #{rocks_left}"
-    remaining_cycles = rocks_left / cycle_rocks
-    puts "Remaining cycles: #{remaining_cycles}"
-
-    self.height += cycle_height * remaining_cycles
-    self.base_offset += cycle_height * remaining_cycles
-
-    (rocks_left % cycle_rocks).times do
-      drop_shape(create_next_shape)
-      slide_window
-    end
-
-    # # Now we know the size of the cycle, the rest should be...easy?
-    # cycle_count = rock_count / cycle_moves
-    # self.height = cycle_height * cycle_count
+    # end_state = cycle_state.last
     #
-    # # The grid will contain the last cycle
-    # self.base_offset += height - cycle_height
+    # puts "Start state: #{start_state.inspect}"
+    # puts "End state: #{end_state.inspect}"
     #
-    # puts "Cycle moves: #{cycle_moves}"
+    # return unless start_state
+    #
+    # puts "Height before cycle: #{start_state[:height]}"
+    #
+    # cycle_rocks = end_state[:rock_index] - start_state[:rock_index]
+    # puts "Cycle rocks: #{cycle_rocks}"
+    # cycle_height = end_state[:height] - start_state[:height]
     # puts "Cycle height: #{cycle_height}"
-    # puts "Cycle count: #{cycle_count}"
     #
-    # puts "New height: #{height}"
-    # puts "New base offset: #{base_offset}"
-    # puts "Rocks left to process: #{rock_count % cycle_moves}"
+    # rocks_left = rock_count - (end_state[:rock_index])
+    # puts "Rocks left: #{rocks_left}"
+    # remaining_cycles = rocks_left / cycle_rocks
+    # puts "Remaining cycles: #{remaining_cycles}"
+    #
+    # self.height += cycle_height * remaining_cycles
+    # puts "Height after cycles: #{height}"
+    #
+    # puts "Base offset before: #{base_offset}"
+    # self.base_offset += cycle_height * remaining_cycles
+    # puts "Base offset after: #{base_offset}"
+    #
     # print_grid
     #
-    # (rock_count % cycle_moves).times do
-    #   print_grid
+    # (rocks_left % cycle_rocks).times do
     #   drop_shape(create_next_shape)
     #   slide_window
     # end
   end
 
   def print_grid(shape = nil)
-    grid.slice(0, height + 10).reverse.each_with_index do |row, index|
+    grid.reverse.each_with_index do |row, index|
       chars = row.clone
 
       shape&.coordinates&.each do |x, y|
-        chars[x] = '@' if y == (height + 9 - index)
+        chars[x] = '@' if y == grid.size - 1 - index
       end
+
+      # next if chars.all? { |c| c == '.' }
 
       puts "|#{chars.join('')}|"
     end
+
+    puts "+#{'-' * WIDTH}+" if base_offset.zero?
     puts
   end
 
@@ -236,10 +231,10 @@ class Shaft
   def drop_shape(shape)
     # We know we can safely move at least 3 times without bumping into
     # another piece, because of where the initial drop point is
-    move_shape(shape, 3)
+    3.times { move_shape(shape) }
 
     # Move 1 at a time until we hit something
-    move_shape(shape, 1) until blocked?(shape)
+    move_shape(shape) until blocked?(shape)
 
     # Back off the last move that blocked us
     shape.up
@@ -251,14 +246,12 @@ class Shaft
   def slide_window
     return unless (height - base_offset) > WINDOW_SIZE
 
-    overhang = height - base_offset - WINDOW_SIZE
-    self.base_offset += overhang
-    grid.slice!(0, overhang)
-    overhang.times { grid << Array.new(WIDTH) { '.' } }
+    self.grid = grid.drop(WINDOW_SIZE / 2) + Array.new(WINDOW_SIZE / 2) { Array.new(WIDTH) { '.' }}
+    self.base_offset += WINDOW_SIZE / 2
   end
 
-  def move_shape(shape, count)
-    lateral_offset = adjust_gas_jets(count)
+  def move_shape(shape)
+    lateral_offset = adjust_gas_jets(shape)
 
     if lateral_offset.negative?
       adjusted_x = shape.min_x + lateral_offset
@@ -273,26 +266,28 @@ class Shaft
       shape.left while blocked?(shape)
     end
 
-    shape.down(count)
+    shape.down
   end
 
-  def adjust_gas_jets(count)
-    moves = jet_pattern.slice(jet_index, count)
-    moves += jet_pattern.slice(0, count - moves.size) if moves.size < count
+  def adjust_gas_jets(shape)
+    move = jet_pattern[jet_index]
 
-    self.jet_index += count
+    self.jet_index += 1
 
-    if jet_index > jet_pattern.size
+    if jet_index >= jet_pattern.size
       self.jet_cycled = true
       self.jet_index %= jet_pattern.size
     end
 
-    moves.sum
+    move
   end
 
   def draw_shape(shape)
     shape.coordinates.each do |x, y|
-      grid[y - base_offset][x] = '#'
+      adjusted_y = y - base_offset
+
+      grid[adjusted_y] ||= Array.new(WIDTH) { '.' }
+      grid[adjusted_y][x] = '#'
     end
   end
 
@@ -300,7 +295,7 @@ class Shaft
     # We hit the floor
     return true if shape.min_y.negative?
 
-    shape.coordinates.any? { |x, y| grid[y - base_offset][x] == '#' }
+    shape.coordinates.any? { |x, y| grid[y - base_offset]&.[](x) == '#' }
   end
 end
 
