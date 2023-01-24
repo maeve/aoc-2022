@@ -2,17 +2,30 @@
 # frozen_string_literal: true
 
 class State
-  RESOURCE_TYPES = [:geode, :obsidian, :clay, :ore].freeze
+  RESOURCE_TYPES = %i[geode obsidian clay ore].freeze
 
-  attr_accessor :costs, :producers, :resources, :minutes_left
+  attr_accessor :costs, :max_costs, :producers, :resources, :minutes_left
 
   def initialize(
     costs:,
+    max_costs: nil,
     producers: { ore: 1, clay: 0, obsidian: 0, geode: 0 },
     resources: { ore: 0, clay: 0, obsidian: 0, geode: 0 },
     minutes_left: 24
   )
     self.costs = costs
+
+    unless max_costs
+      max_costs = { ore: 0, clay: 0, obsidian: 0, geode: Float::INFINITY }
+
+      costs.each_pair do |_, resource_costs|
+        resource_costs.each_key do |resource_type|
+          max_costs[resource_type] = [max_costs[resource_type], resource_costs[resource_type]].max
+        end
+      end
+    end
+
+    self.max_costs = max_costs
     self.producers = producers.clone
     self.resources = resources.clone
     self.minutes_left = minutes_left
@@ -27,16 +40,12 @@ class State
   def affordable_robots
     RESOURCE_TYPES.select do |robot_type|
       can_afford?(robot_type) &&
-        # Always build a geode robot when we can
-        (robot_type == :geode ||
          # We can only produce one robot at a time, so don't bother generating
          # excess resources
-         producers[robot_type] < max_cost(robot_type))
+         (robot_type == :geode ||
+          (producers[robot_type] < max_costs[robot_type] &&
+           resources[robot_type] <= max_costs[robot_type]))
     end
-  end
-
-  def max_cost(resource_type)
-    costs.map { |_, values| values[resource_type].to_i }.max
   end
 
   def can_afford?(resource_type)
@@ -58,9 +67,18 @@ class State
     "producers=#{producers.inspect} resources=#{resources.inspect} minutes_left=#{minutes_left}"
   end
 
+  def estimated_max_geodes
+    resources[:geode] +
+      producers[:geode] * minutes_left +
+      # Fudge factor so we don't prune too early - what if we produced a new
+      # geode robot every minute
+      (1..minutes_left).sum
+  end
+
   class << self
     def advance_from(previous_state)
       new(costs: previous_state.costs,
+          max_costs: previous_state.max_costs,
           producers: previous_state.producers,
           resources: previous_state.resources,
           minutes_left: previous_state.minutes_left - 1)
@@ -92,35 +110,28 @@ class Blueprint
   def max_geodes
     return @max_geodes unless @max_geodes.nil?
 
-    queue = [State.new(costs: costs)]
+    states = [State.new(costs: costs)]
 
     @max_geodes = 0
 
-    until queue.empty?
-      state = queue.shift
+    until states.empty?
+      state = states.pop
 
-      next if state.finished?
-
-      # puts "Processing state"
-      # puts state
+      next if state.finished? || state.estimated_max_geodes < @max_geodes
 
       pending = state.affordable_robots
 
       state.collect_resources
 
-      # Prune search space to find max
-      next if state.resources[:geode] < @max_geodes
-
-      @max_geodes = state.resources[:geode]
-      # puts "Max geodes: #{@max_geodes}"
+      @max_geodes = [state.resources[:geode], @max_geodes].max
 
       # We always have the option to build nothing and collect resources
-      queue << State.advance_from(state)
+      states << State.advance_from(state)
 
       pending.each do |resource_type|
         next_state = State.advance_from(state)
         next_state.add_robot(resource_type)
-        queue << next_state
+        states << next_state
       end
     end
 
@@ -144,6 +155,6 @@ class RobotFactory
   end
 end
 
-input = File.readlines('./test-input.txt').map(&:chomp)
+input = File.readlines('./input.txt').map(&:chomp)
 
 puts RobotFactory.new(input).total_quality_level
