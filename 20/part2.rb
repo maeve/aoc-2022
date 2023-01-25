@@ -2,45 +2,59 @@
 # frozen_string_literal: true
 
 class LinkedList
-  attr_accessor :original_nodes, :mixed_nodes
+  class Node
+    attr_reader :value, :position
 
-  def initialize(input, multiplier)
-    self.original_nodes = input.map { |value| value.to_i * multiplier }
-    self.mixed_nodes = original_nodes.clone
-  end
-
-  def mix
-    original_nodes.each do |value|
-      index = mixed_nodes.index(value)
-      mixed_nodes.rotate!(index)
-
-      current = mixed_nodes.shift
-
-      mixed_nodes.rotate!(current)
-      mixed_nodes.unshift(current)
+    def initialize(value, position)
+      @value = value
+      @position = position
     end
   end
 
-  def to_s
-    mixed_nodes.rotate!(mixed_nodes.index(0))
-    mixed_nodes.join(', ')
+  attr_reader :original_nodes, :nodes
+
+  def initialize(input, multiplier)
+    @original_nodes = []
+
+    input.each_with_index do |str, position|
+      value = str.to_i * multiplier
+      original_nodes << Node.new(value, position)
+    end
+
+    @nodes = original_nodes.clone
   end
 
-  def nth_value_after_zero(nth)
-    mixed_nodes.rotate!(mixed_nodes.index(0))
+  def mix
+    original_nodes.each do |node|
+      nodes.rotate!(nodes.index(node))
+      nodes.shift
 
-    mixed_nodes.rotate!(nth)
+      nodes.rotate!(node.value)
+      nodes.unshift(node)
+    end
 
-    mixed_nodes.first
+    nodes.rotate!(zero_index)
+  end
+
+  def to_s
+    nodes.map(&:value).join(', ')
+  end
+
+  def zero_index
+    nodes.index { |node| node.value.zero? }
+  end
+
+  def nth_value(offset)
+    nodes[offset % nodes.size].value
   end
 end
 
-input = File.readlines('./test-input.txt').map(&:chomp)
+input = File.readlines('./input.txt').map(&:chomp)
 
 file = LinkedList.new(input, 811589153)
 
 puts "Initial arrangement:"
-puts file.original_nodes.join(", ")
+puts file
 puts
 
 10.times do |i|
@@ -50,10 +64,10 @@ puts
   puts
 end
 
-puts "1000th after zero: #{file.nth_value_after_zero(1000)}"
-puts "2000th after zero: #{file.nth_value_after_zero(2000)}"
-puts "3000th after zero: #{file.nth_value_after_zero(3000)}"
+puts "1000th after zero: #{file.nth_value(1000)}"
+puts "2000th after zero: #{file.nth_value(2000)}"
+puts "3000th after zero: #{file.nth_value(3000)}"
 
-sum = file.nth_value_after_zero(1000) + file.nth_value_after_zero(2000) + file.nth_value_after_zero(3000)
+sum = file.nth_value(1000) + file.nth_value(2000) + file.nth_value(3000)
 
 puts "Sum: #{sum}"
