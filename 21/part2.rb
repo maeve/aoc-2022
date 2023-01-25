@@ -102,19 +102,7 @@ class MonkeyMap
   def find_human_value
     root_monkey.precalculate
 
-    puts "Monkeys after calculation"
-    monkeys.each_value do |monkey|
-      puts monkey
-    end
-    puts
-
     fill_in_monkey_numbers(root_monkey)
-
-    puts "Monkeys after filling in"
-    monkeys.each_value do |monkey|
-      puts monkey
-    end
-    puts
 
     monkeys['humn'].number
   end
@@ -122,33 +110,38 @@ end
 
 def fill_in_monkey_numbers(monkey)
   if monkey.left.number?
-    known_monkey = monkey.left
-    next_monkey = monkey.right
+    known = :left
+    unknown = :right
   else
-    known_monkey = monkey.right
-    next_monkey = monkey.left
+    known = :right
+    unknown = :left
   end
 
-  puts "Current monkey: #{monkey}"
-  puts "Known monkey: #{known_monkey}"
-  puts "Next monkey: #{next_monkey}"
+  known_monkey = monkey.send(known)
+  next_monkey = monkey.send(unknown)
 
   return if next_monkey.nil?
 
-  if monkey.operator == '='
+  case monkey.operator
+  when '='
     monkey.number = known_monkey.number * 2
     next_monkey.number = known_monkey.number
-  else
-    next_monkey.number = monkey.number.send(monkey.inverse_operator, known_monkey.number)
+  when '*'
+    next_monkey.number = monkey.number / known_monkey.number
+  when '/'
+    operator = known == :left ? '/' : '*'
+    next_monkey.number = known_monkey.number.send(operator, monkey.number)
+  when '+'
+    next_monkey.number = monkey.number - known_monkey.number
+  when '-'
+    operator = known == :left ? '-' : '+'
+    next_monkey.number = known_monkey.number.send(operator, monkey.number)
   end
-
-  puts "Current monkey after: #{monkey.number}"
-  puts "Next monkey after: #{next_monkey.number}"
 
   fill_in_monkey_numbers(next_monkey) unless next_monkey.human?
 end
 
-input = File.readlines('./test-input.txt').map(&:chomp)
+input = File.readlines('./input.txt').map(&:chomp)
 
 map = MonkeyMap.new(input)
 
